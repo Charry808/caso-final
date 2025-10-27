@@ -1,0 +1,67 @@
+paquetes <- c("readxl", "dplyr", "ggplot2", "caret")
+instalar <- paquetes[!(paquetes %in% installed.packages()[,"Package"])]
+if(length(instalar)) install.packages(instalar)
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(caret)
+
+setwd("/Users/manuelagranadoshernandez/Desktop/caso_3/datos_caso/caso_predicting")
+
+data <- read_excel("DATA.xlsx")
+
+cat("Vista general del dataset:\n")
+glimpse(data)
+summary(data)
+
+
+data <- data %>% na.omit()  
+
+set.seed(123)
+trainIndex <- createDataPartition(data$Churn, p = 0.7, list = FALSE)
+train <- data[trainIndex, ]
+test  <- data[-trainIndex, ]
+
+# --- 9. Entrenar modelo de regresión logística
+modelo <- glm(Churn ~ ., data = train, family = binomial)
+cat("\nResumen del modelo:\n")
+summary(modelo)
+
+# --- 10. Evaluar en el conjunto de prueba
+pred_prob <- predict(modelo, newdata = test, type = "response")
+pred_class <- ifelse(pred_prob > 0.5, 1, 0)
+pred_class <- as.factor(pred_class)
+
+cat("\nMatriz de confusión:\n")
+print(confusionMatrix(pred_class, test$Churn))
+
+# --- 11. Identificar variables más influyentes
+coef_abs <- abs(coef(modelo))[-1]
+top3 <- sort(coef_abs, decreasing = TRUE)[1:3]
+cat("\n🔝 Las tres variables más influyentes en el churn son:\n")
+print(names(top3))
+
+# --- 12. Calcular probabilidad de churn para todos los clientes
+data$Prob_Churn <- predict(modelo, newdata = data, type = "response")
+
+# --- 13. Obtener los 100 clientes con mayor probabilidad de churn
+top100 <- data %>% arrange(desc(Prob_Churn)) %>% head(100)
+
+# --- 14. Exportar los resultados
+write.csv(top100, "Top100_Churn.csv", row.names = FALSE)
+cat("\n✅ Archivo 'Top100_Churn.csv' generado en la carpeta del proyecto.\n")
+
+# --- 15. Visualización básica
+ggplot(data, aes(x = Prob_Churn)) +
+  geom_histogram(binwidth = 0.05, fill = "steelblue", color = "white") +
+  labs(title = "Distribución de probabilidades de Churn",
+       x = "Probabilidad de Churn",
+       y = "Número de clientes") +
+  theme_minimal()
+
+# --- 16. Comentario final
+cat("\nInterpretación:\n")
+cat("Las tres variables más influyentes indican los factores que más aumentan la probabilidad de abandono.\n")
+cat("El archivo 'Top100_Churn.csv' contiene los clientes más propensos a irse,\npara que QWE Inc. pueda priorizar la retención de esos usuarios.\n")
+
